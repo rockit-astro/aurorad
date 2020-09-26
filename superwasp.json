@@ -1,0 +1,7 @@
+{
+  "daemon": "superwasp_aurora",
+  "log_name": "aurorad",
+  "serial_port": "/dev/aurora",
+  "serial_baud": 9600,
+  "serial_timeout": 5
+}

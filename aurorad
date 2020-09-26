@@ -1,0 +1,142 @@
+#!/usr/bin/env python3.6
+#
+# This file is part of aurorad.
+#
+# aurorad is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# aurorad is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with aurorad.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Weather station daemon for am attached Eurotech Aurora Cloud Sensor III"""
+
+import argparse
+import datetime
+import re
+import threading
+import time
+import Pyro4
+import serial
+from warwick.observatory.common import log
+from warwick.observatory.aurora import Config
+
+# Set automatically when generating RPM package
+SOFTWARE_VERSION = "UNKNOWN"
+DATA_REGEX = r'^\$20,ff,(?P<time>\d{5}),(?P<ambient_temp>[-\d]{5}),(?P<sky_temp>[-\d]{5}),(?P<clarity>[-\d]{5}),(?P<light_intensity>\d{3}),(?P<rain_intensity>\d{3}),[0-9a-f]{4},[0-9a-f]{4},[0-9a-f]{2},00!\n$'
+DATA_SENSORS = {
+    'clarity': {
+        'label': 'Sky Clarity.',
+        'units': '\u00B0C'
+    },
+    'light_intensity': {
+        'label': 'Light Intensity'
+    },
+    'rain_intensity': {
+        'label': 'Rain Intensity'
+    },
+}
+
+
+class AuroraDaemon:
+    """Daemon class that wraps the RS232 interface"""
+    def __init__(self, config):
+        self._config = config
+        self._lock = threading.Lock()
+        self._running = True
+        self._regex = re.compile(DATA_REGEX)
+        self._latest = None
+        self._port = None
+        self._port_error = False
+
+        runloop = threading.Thread(target=self.run)
+        runloop.daemon = True
+        runloop.start()
+
+    def run(self):
+        """Main run loop"""
+        while self._running:
+            # Initial setup
+            try:
+                self._port = serial.Serial(self._config.serial_port, self._config.serial_baud,
+                                           timeout=self._config.serial_timeout)
+                print('Connected to', self._config.serial_port)
+                prefix = 'Restored' if self._port_error else 'Established'
+                log.info(self._config.log_name, prefix + ' serial connection to aurora')
+                self._port_error = False
+            except Exception as exception:
+                print(exception)
+                print('Will retry in 10 seconds...')
+                if not self._port_error:
+                    log.error(self._config.log_name, 'Failed to connect to aurora')
+
+                self._port_error = True
+
+                time.sleep(10.)
+                continue
+
+            try:
+                self._latest = None
+
+                # Flush any stale state
+                self._port.flushInput()
+                self._port.flushOutput()
+
+                # First line may have been only partially received
+                self._port.readline()
+
+                # Main run loop
+                while self._running:
+                    data = self._port.readline().decode('ascii')
+                    match = self._regex.match(data)
+                    if match:
+                        # The "clarity" measurement is defined as the ambient - sky temperatures.
+                        # Ambient, sky, and clarity temperatures are given as integers * 100 their measured value
+                        # Light and rain intensity are given as integers * 10 their measured value
+                        latest = {
+                            'date': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                            'software_version': SOFTWARE_VERSION,
+                            'clarity': float(match.group('clarity')) / 100,
+                            'light_intensity': float(match.group('light_intensity')) / 10,
+                            'rain_intensity': float(match.group('rain_intensity')) / 10
+                        }
+
+                        with self._lock:
+                            self._latest = latest
+
+            except Exception as exception:
+                self._port.close()
+                print(exception)
+                print('Will retry in 10 seconds...')
+                if not self._port_error:
+                    log.error(self._config.log_name, 'Lost serial connection to aurora')
+                self._port_error = True
+                time.sleep(10.)
+
+    @Pyro4.expose
+    def last_measurement(self):
+        """Query the latest valid measurement."""
+        with self._lock:
+            return self._latest
+
+    @Pyro4.expose
+    def measurement_sensors(self):
+        """
+        Returns a dictionary of sensor definitions
+        """
+        return DATA_SENSORS
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Aurora Server')
+    parser.add_argument('config', help='Path to configuration json file')
+    args = parser.parse_args()
+
+    _config = Config(args.config)
+    _config.daemon.launch(AuroraDaemon(_config))

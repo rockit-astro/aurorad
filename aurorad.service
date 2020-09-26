@@ -1,0 +1,15 @@
+[Unit]
+Description=Daemon for exposing an attached Eurotech Aurora Cloud Sensor III weather station via Pyro.
+After=syslog.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=on-failure
+Type=simple
+ExecStart=/usr/bin/env python3.6 -u /usr/bin/aurorad /etc/aurorad/superwasp.json
+ExecStartPost=/usr/bin/env python3.6 -u /usr/bin/obslog info superwasp_aurora Started by systemd
+ExecStopPost=/usr/bin/env python3.6 -u /usr/bin/obslog info superwasp_aurora Stopped by systemd
+StandardOutput=syslog
+StandardError=syslog
+
