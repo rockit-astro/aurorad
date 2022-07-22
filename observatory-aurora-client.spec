@@ -1,17 +1,14 @@
 Name:      observatory-aurora-client
-Version:   1.0.0
+Version:   20220722
 Release:   0
-Url:       https://github.com/warwick-one-metre/aurora
+Url:       https://github.com/warwick-one-metre/aurorad
 Summary:   Weather station client for the Warwick La Palma telescopes.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-Pyro4, python3-warwick-observatory-common
+Requires:  python3 python3-Pyro4 python3-warwick-observatory-common
 
 %description
-Part of the observatory software for the Warwick La Palma telescopes.
-
-aurora is a commandline utility that prints the latest measurement in a human-readable form.
 
 %build
 mkdir -p %{buildroot}%{_bindir}

@@ -1,4 +1,4 @@
-## Aurora Cloud Sensor III daemon [![Travis CI build status](https://travis-ci.org/warwick-one-metre/aurorad.svg?branch=master)](https://travis-ci.org/warwick-one-metre/aurorad)
+## Aurora Cloud Sensor III daemon
 
 Part of the observatory software for the Warwick La Palma telescopes.
 
@@ -7,7 +7,7 @@ makes the latest measurement available for other services via Pyro.
 
 `aurora` is a commandline utility that reports the latest data from the SuperWASP unit.
 
-See [Software Infrastructure](https://github.com/warwick-one-metre/docs/wiki/Software-Infrastructure) for an overview of the W1m software architecture and instructions for developing and deploying the code.
+See [Software Infrastructure](https://github.com/warwick-one-metre/docs/wiki/Software-Infrastructure) for an overview of the observatory software architecture and instructions for developing and deploying the code.
 
 ### Software Setup
 
